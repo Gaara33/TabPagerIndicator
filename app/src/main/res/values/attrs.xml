@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+   <declare-styleable name="ViewPagerTabs">
+       <attr name="textSize" format="dimension"></attr>
+       <attr name="textColor" format="color"></attr>
+       <attr name="textAllCap" format="boolean"></attr>
+       <attr name="sliderColor" format="color"></attr>
+       <attr name="sliderHeight" format="float"></attr>
+   </declare-styleable>
+</resources>
