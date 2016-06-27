@@ -2,5 +2,5 @@
 
 效果图
 
-    ![](/tabpagerind.png)
+    ![image](/tabpagerind.png)
 
