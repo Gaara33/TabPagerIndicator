@@ -2,17 +2,13 @@
 package xd.tabpagerindicator;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.Shader;
 import android.graphics.Xfermode;
 import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
@@ -27,10 +23,6 @@ public class ViewPagerTabStrip extends LinearLayout {
     private int mSliderColor = Color.BLACK;
     private int mTextColor = Color.BLACK;
     private Paint mPaint;
-    private Bitmap mDst;
-    private Bitmap text;
-    private Shader mBG;
-    private Paint basicPaint;
     private Xfermode xfermode = new PorterDuffXfermode(PorterDuff.Mode.XOR);
 
     public ViewPagerTabStrip(Context context) {
@@ -40,28 +32,16 @@ public class ViewPagerTabStrip extends LinearLayout {
     private ViewPagerTabStrip(Context context, AttributeSet attrs) {
         super(context, attrs);
         setWillNotDraw(false);
-        initData();
+        initPain();
     }
 
-    private void initData() {
+    private void initPain() {
         mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mPaint.setAntiAlias(true);// 抗锯齿
         mPaint.setFilterBitmap(false);
         mPaint.setDither(true);// 防抖动
         mPaint.setStyle(Paint.Style.FILL);// 设置画笔的填充方式为实心
         mPaint.setTextAlign(Paint.Align.CENTER);
-        mPaint.setColor(Color.BLACK);
-
-        Bitmap layer = Bitmap.createBitmap(new int[]{0xFFFFFFFF, 0xFFCCCCCC, 0xFFCCCCCC, 0xFFFFFFFF}, 2, 2, Bitmap.Config.RGB_565);
-        mBG = new BitmapShader(layer, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT);
-        Matrix m = new Matrix();
-        m.setScale(6, 6);
-        mBG.setLocalMatrix(m);
-        basicPaint = new Paint();
-        basicPaint.setFilterBitmap(false);
-        // draw the checker-board pattern
-        basicPaint.setStyle(Paint.Style.FILL);
-        basicPaint.setShader(mBG);
     }
 
     public void setTextSize(int size) {
@@ -91,6 +71,10 @@ public class ViewPagerTabStrip extends LinearLayout {
         invalidate();
     }
 
+    private boolean isRtl() {
+        return ViewCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_RTL;
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         int childCount = getChildCount();
@@ -103,8 +87,7 @@ public class ViewPagerTabStrip extends LinearLayout {
             int selectedLeft = selectedTitle.getLeft();
             int selectedRight = selectedTitle.getRight();
             final boolean isRtl = isRtl();
-            final boolean hasNextTab = isRtl ? mIndexForSelection > 0
-                    : (mIndexForSelection < (getChildCount() - 1));
+            final boolean hasNextTab = isRtl ? mIndexForSelection > 0 : (mIndexForSelection < (getChildCount() - 1));
             if ((mSelectionOffset > 0.0f) && hasNextTab) {
                 // Draw the selection partway between the tabs
                 nextItem = mIndexForSelection + (isRtl ? -1 : 1);
@@ -112,10 +95,8 @@ public class ViewPagerTabStrip extends LinearLayout {
                 int nextLeft = nextTitle.getLeft();
                 int nextRight = nextTitle.getRight();
 
-                selectedLeft = (int) (mSelectionOffset * nextLeft +
-                        (1.0f - mSelectionOffset) * selectedLeft);
-                selectedRight = (int) (mSelectionOffset * nextRight +
-                        (1.0f - mSelectionOffset) * selectedRight);
+                selectedLeft = (int) (mSelectionOffset * nextLeft + (1.0f - mSelectionOffset) * selectedLeft);
+                selectedRight = (int) (mSelectionOffset * nextRight + (1.0f - mSelectionOffset) * selectedRight);
             }
             for (int i = 0; i < getChildCount(); i++) {
                 TextView childAt = (TextView) getChildAt(i);
@@ -125,80 +106,52 @@ public class ViewPagerTabStrip extends LinearLayout {
                     childAt.setTextColor(mTextColor);
                 }
             }
-            int W = getWidth();
-            int H = getHeight();
-            // draw the src/dst example into our offscreen bitmap
-            int sc = canvas.saveLayer(0, 0, W, H, null,
-                    Canvas.MATRIX_SAVE_FLAG |
-                            Canvas.CLIP_SAVE_FLAG |
-                            Canvas.HAS_ALPHA_LAYER_SAVE_FLAG |
-                            Canvas.FULL_COLOR_LAYER_SAVE_FLAG |
-                            Canvas.CLIP_TO_LAYER_SAVE_FLAG);
-            mDst = makeSildingBlock(W, H, selectedLeft, selectedRight);
-            canvas.drawBitmap(mDst, 0, 0, basicPaint);
-            basicPaint.setXfermode(xfermode);
-            text = drawText(W, H, selectedTitle, nextTitle);
-            canvas.drawBitmap(text, 0, 0, basicPaint);
-            basicPaint.setXfermode(null);
-            canvas.restoreToCount(sc);
-            if (mDst != null && !mDst.isRecycled()) {
-                mDst.recycle();
-            }
-            if (text != null && !text.isRecycled()) {
-                text.recycle();
-            }
+            int width = getWidth();
+            int height = getHeight();
+            int save = canvas.saveLayer(0, 0, width, height, null, Canvas.ALL_SAVE_FLAG);
+            drawSlidingBlock(canvas, selectedLeft, selectedRight, height);
+            mPaint.setXfermode(xfermode);
+            drawText(canvas, selectedTitle, nextTitle, height);
+            mPaint.setXfermode(null);
+            canvas.restoreToCount(save);
         }
+        super.onDraw(canvas);
     }
 
-    private boolean isRtl() {
-        return ViewCompat.getLayoutDirection(this) == ViewCompat.LAYOUT_DIRECTION_RTL;
+    /**
+     * 文字
+     * @param canvas
+     * @param selectedTitle
+     * @param nextTitle
+     * @param height
+     */
+    private void drawText(Canvas canvas, View selectedTitle, View nextTitle, int height) {
+        mPaint.setColor(mTextColor);
+        Paint.FontMetricsInt fontMetrics = mPaint.getFontMetricsInt();
+        String content = (String) ((TextView) selectedTitle).getText();
+        Rect targetRect = new Rect(selectedTitle.getLeft(), 0, selectedTitle.getRight(), height);
+        int baseline = (targetRect.bottom + targetRect.top - fontMetrics.bottom - fontMetrics.top) / 2;
+        canvas.drawText(content, targetRect.centerX(), baseline, mPaint);
+        if (nextTitle != null) {
+            String content2 = (String) ((TextView) nextTitle).getText();
+            Rect targetRect2 = new Rect(nextTitle.getLeft(), 0, nextTitle.getRight(), height);
+            int baseline2 = (targetRect2.bottom + targetRect2.top - fontMetrics.bottom - fontMetrics.top) / 2;
+            // 下面这行是实现水平居中，drawText对应改为传入targetRect.centerX()
+            canvas.drawText(content2, targetRect2.centerX(), baseline2, mPaint);
+        }
     }
 
     /**
      * 滑块
-     *
-     * @param w
-     * @param h
-     * @param l
-     * @param r
-     * @return
+     * @param canvas
+     * @param selectedLeft
+     * @param selectedRight
+     * @param height
      */
-    private Bitmap makeSildingBlock(int w, int h, int l, int r) {
-        Bitmap bm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bm);
-        RectF t = new RectF(l, h * (1 - mSliderHeightScale) / 2, r, h * (1 + mSliderHeightScale) / 2);
+    private void drawSlidingBlock(Canvas canvas, int selectedLeft, int selectedRight, int height) {
         mPaint.setColor(mSliderColor);
-        c.drawRoundRect(t, h * mSliderHeightScale / 2, h * mSliderHeightScale / 2, mPaint);
-        return bm;
-    }
-
-    /**
-     * 根据TextView画字
-     *
-     * @param w
-     * @param h
-     * @param v1
-     * @param v2
-     * @return
-     */
-    private Bitmap drawText(int w, int h, View v1, View v2) {
-        Bitmap bm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bm);
-        Paint.FontMetricsInt fontMetrics = mPaint.getFontMetricsInt();
-        String content = (String) ((TextView) v1).getText();
-        Rect targetRect = new Rect(v1.getLeft(), 0, v1.getRight(), h);
-        int baseline = (targetRect.bottom + targetRect.top - fontMetrics.bottom - fontMetrics.top) / 2;
-        // 下面这行是实现水平居中，drawText对应改为传入targetRect.centerX()
-        mPaint.setColor(mTextColor);
-        c.drawText(content, targetRect.centerX(), baseline, mPaint);
-        if (v2 != null) {
-            String content2 = (String) ((TextView) v2).getText();
-            Rect targetRect2 = new Rect(v2.getLeft(), 0, v2.getRight(), h);
-            int baseline2 = (targetRect2.bottom + targetRect2.top - fontMetrics.bottom - fontMetrics.top) / 2;
-            // 下面这行是实现水平居中，drawText对应改为传入targetRect.centerX()
-            c.drawText(content2, targetRect2.centerX(), baseline2, mPaint);
-        }
-        return bm;
+        RectF t = new RectF(selectedLeft, height * (1 - mSliderHeightScale) / 2, selectedRight, height * (1 + mSliderHeightScale) / 2);
+        canvas.drawRoundRect(t, height * mSliderHeightScale / 2, height * mSliderHeightScale / 2, mPaint);
     }
 
 }

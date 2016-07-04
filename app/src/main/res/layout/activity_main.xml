@@ -10,6 +10,8 @@
         android:layout_width="match_parent"
         android:layout_height="50dp"
         android:background="#ffd200"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
         app:sliderColor="#000000"
         app:sliderHeight="0.6"
         app:textColor="#000000"
