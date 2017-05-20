@@ -19,7 +19,7 @@ public class MainActivity extends Activity {
 
     private String[] title = {"鸣人", "佐助", "蝎", "迪达拉", "Orochimaru", "长门", "九喇嘛"};
     private ArrayList<View> views = new ArrayList<View>();
-    //private ImageView hehe;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
